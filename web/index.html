@@ -171,9 +171,11 @@ const fmt = (v, d = 1) => (v == null || !isFinite(v) ? "—" : Number(v).toFixed
 
 // 按浏览器自报 OS 的参考 SYN 模板（来自设计文档，待用真实设备校准）
 const TEMPLATES = {
-  windows: { name: "Windows 10/11", ttl: 128, window: 64240, wscale: 8, ts: false, df: true, opts: ["MSS", "NOP", "WS", "NOP", "NOP", "SACK_PERM"] },
+  // window / wscale 可以是多个取值：真机实测都出现过（Windows 10/11 有 64240 和 65535 两种）
+  windows: { name: "Windows 10/11", ttl: 128, window: [64240, 65535], wscale: 8, ts: false, df: true, opts: ["MSS", "NOP", "WS", "NOP", "NOP", "SACK_PERM"] },
   apple: { name: "macOS / iOS", ttl: 64, window: 65535, wscale: 6, ts: true, df: true, opts: ["MSS", "NOP", "WS", "NOP", "NOP", "TS", "SACK_PERM", "EOL"] },
-  linux: { name: "Linux / Android", ttl: 64, window: 64240, wscale: 7, ts: true, df: true, opts: ["MSS", "SACK_PERM", "TS", "NOP", "WS"] },
+  linux: { name: "Linux", ttl: 64, window: 64240, wscale: 7, ts: true, df: true, opts: ["MSS", "SACK_PERM", "TS", "NOP", "WS"] },
+  android: { name: "Android", ttl: 64, window: [65535, 64240], wscale: [9, 8, 7], ts: true, df: true, opts: ["MSS", "SACK_PERM", "TS", "NOP", "WS"] },
 };
 const FAM_LABEL = { windows: "Windows", apple: "Apple", linux: "Linux", unknown: "未知" };
 const ST = {
@@ -281,7 +283,10 @@ function renderLayers(r) {
 function renderSyn(r) {
   const s = r.tcp?.syn;
   const fam = r.os_http?.family;
-  const tpl = TEMPLATES[fam];
+  const ua = `${r.http?.user_agent || ""} ${r.http?.sec_ch_ua_platform || ""}`;
+  const tpl = TEMPLATES[fam === "linux" && /Android/i.test(ua) ? "android" : fam];
+  const fmt = (v) => (Array.isArray(v) ? v.join(" / ") : v);
+  const differs = (got, want) => (Array.isArray(want) ? !want.includes(got) : got !== want);
   $("tpl-chip").textContent = tpl ? `对照：${tpl.name} 参考模板` : "浏览器 OS 未知，不做对照";
   if (!s) {
     $("syn").innerHTML = `<tr><td>没有抓到这条连接的 SYN。经过 CDN 或本机回环访问时会这样。</td></tr>`;
@@ -292,8 +297,8 @@ function renderSyn(r) {
   const optChips = (list, other) => `<div class="opts">${list.map((o, i) => `<span class="opt${other && other[i] !== o.split("=")[0] ? " miss" : ""}">${esc(o)}</span>`).join("")}</div>`;
   const rows = [
     ["初始 TTL", `${s.initial_ttl}（观测 ${s.ttl}）`, tpl?.ttl, tpl && s.initial_ttl !== tpl.ttl],
-    ["SYN 窗口", s.window, tpl?.window, tpl && s.window !== tpl.window],
-    ["窗口缩放 wscale", s.wscale ?? "无", tpl?.wscale, tpl && s.wscale !== tpl.wscale],
+    ["SYN 窗口", s.window, fmt(tpl?.window), tpl && differs(s.window, tpl.window)],
+    ["窗口缩放 wscale", s.wscale ?? "无", fmt(tpl?.wscale), tpl && differs(s.wscale, tpl.wscale)],
     ["时间戳 TS", s.timestamps ? "有" : "无", tpl ? (tpl.ts ? "有" : "无") : null, tpl && s.timestamps !== tpl.ts],
     ["选项顺序", optChips(s.options || [], tpl?.opts), tpl ? optChips(tpl.opts, names) : null, tpl && names.join() !== tpl.opts.join(), true],
     ["MSS", s.mss ?? "无", "按出口路径", false],
