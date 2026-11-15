@@ -310,7 +310,7 @@ function renderSyn(r) {
   $("syn").innerHTML = `<thead><tr><th></th><th>字段</th><th>本次观测</th><th>${tpl ? esc(tpl.name) + " 参考值" : "参考值"}</th></tr></thead><tbody>` +
     rows.map(([k, obs, exp, diff, raw]) => `<tr class="${diff ? "diff" : ""}"><td class="mark">${diff ? '<span class="diff-mark" title="不同">✕</span>' : tpl && exp != null && exp !== "—" && exp !== "待校准" && exp !== "按出口路径" ? '<span class="ok-mark" title="相同">✓</span>' : ""}</td><td>${k}</td><td class="obs num">${raw ? obs : esc(obs)}</td><td class="num">${exp == null ? "—" : raw ? exp : esc(exp)}</td></tr>`).join("") + "</tbody>";
   const n = rows.filter((x) => x[3]).length;
-  $("syn-foot").textContent = tpl ? `${n} 项与 ${tpl.name} 参考模板不同。参考值来自设计文档，尚未用真实设备校准。` : "";
+  $("syn-foot").textContent = tpl ? `${n} 项与 ${tpl.name} 参考模板不同。参考值来自 Windows 10/11、macOS、Android 10 真机直连实测（Chrome），其他版本或设备可能略有差异。` : "";
 }
 
 // 握手时序：按真实时间比例画 SYN → SYN-ACK → ACK → 首包
